@@ -21,7 +21,7 @@ st.caption("Reddit (10,000건 샘플링) & X (전수) 데이터 기반")
 # ── 2. DB 연결 및 데이터 로드 ──────────────────────────────────
 @st.cache_resource
 def get_cosmos_client():
-    MONGO_URI = "mongodb+srv://DEproject1:sksmsskawo123!@nje-cluster.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000&connectTimeoutMS=30000&socketTimeoutMS=60000"
+    MONGO_URI = st.secrets["MONGO_URI"] 
     return MongoClient(MONGO_URI)
 
 # ✅ 핵심 수정: drug_key를 캐시 키에 포함시켜 약물 전환 시 재로드 보장
