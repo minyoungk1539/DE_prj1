@@ -18,10 +18,10 @@ st.set_page_config(
 st.title("💊 위고비 & 마운자로 통합 부작용 네트워크")
 st.caption("약물별 관계 분석")
 
-# ── 2. 데이터 로드 로직 (기존과 동일) ─────────────────────────────
+# ── 2. 데이터 로드 로직 (기존과 동일) ─────────────────────────────.
 @st.cache_resource
 def get_cosmos_client():
-    MONGO_URI = "mongodb+srv://DEproject1:sksmsskawo123!@nje-cluster.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000&connectTimeoutMS=30000&socketTimeoutMS=60000"
+    MONGO_URI = st.secrets["MONGO_URI"] 
     return MongoClient(MONGO_URI)
 
 @st.cache_data(ttl=3600)
