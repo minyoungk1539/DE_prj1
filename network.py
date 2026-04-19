@@ -30,31 +30,52 @@ def load_combined_data():
     db = client["DEproject"]
     final_records = []
     target_drugs = ["wegovy", "mounjaro"]
-    
+    target_count = 30000  # 약물별 목표 수량
+
     for drug in target_drugs:
         drug_data = []
-        # X 데이터 전수
-        cursor_x = list(db["X_Cleaned_v2"].find(
-            {"drug_type": drug, "side_effects": {"$ne": None, "$exists": True}},
-            {"author_id": 1, "side_effects": 1, "_id": 0}
-        ))
-        for item in cursor_x:
+        
+        # 1. X_Cleaned_v2에서 해당 약물의 전체 데이터 개수 확인 (랜덤 추출용)
+        # side_effects가 존재하고 drug_type이 일치하는 문서 대상
+        match_condition = {
+            "drug_type": drug, 
+            "side_effects": {"$ne": None, "$exists": True}
+        }
+        
+        # X에서 최대한 랜덤하게 가져오기 (최대 30,000개)
+        pipeline_x = [
+            {"$match": match_condition},
+            {"$sample": {"size": target_count}},
+            {"$project": {"author_id": 1, "side_effects": 1, "_id": 0}}
+        ]
+        
+        results_x = list(db["X_Cleaned_v2"].aggregate(pipeline_x))
+        for item in results_x:
             se = item.get("side_effects", "")
             effects = [e.strip().lower() for e in (se if isinstance(se, list) else str(se).split(",")) if e.strip()]
-            if effects: drug_data.append({"author_id": item.get("author_id"), "drug_type": drug, "side_effects": effects})
+            if effects:
+                drug_data.append({"author_id": item.get("author_id"), "drug_type": drug, "side_effects": effects})
         
-        # 부족분 Reddit 보충
-        needed = 30000 - len(drug_data)
+        # 2. 부족분 계산 및 Reddit에서 보충
+        current_count = len(drug_data)
+        needed = target_count - current_count
+        
         if needed > 0:
-            cursor_r = list(db["Reddit_Cleaned_v2"].find(
-                {"drug_type": drug, "side_effects": {"$ne": None, "$exists": True}},
-                {"author_id": 1, "side_effects": 1, "_id": 0}
-            ).limit(needed))
-            for item in cursor_r:
+            pipeline_r = [
+                {"$match": match_condition},
+                {"$sample": {"size": needed}}, # 남은 수량만큼만 Reddit에서 랜덤 추출
+                {"$project": {"author_id": 1, "side_effects": 1, "_id": 0}}
+            ]
+            results_r = list(db["Reddit_Cleaned_v2"].aggregate(pipeline_r))
+            for item in results_r:
                 se = item.get("side_effects", "")
                 effects = [e.strip().lower() for e in (se if isinstance(se, list) else str(se).split(",")) if e.strip()]
-                if effects: drug_data.append({"author_id": item.get("author_id"), "drug_type": drug, "side_effects": effects})
+                if effects:
+                    drug_data.append({"author_id": item.get("author_id"), "drug_type": drug, "side_effects": effects})
+        
+        # 최종 리스트에 추가
         final_records.extend(drug_data)
+        
     return pd.DataFrame(final_records)
 
 df = load_combined_data()
@@ -137,7 +158,7 @@ st.divider()
 
 c1, c2 = st.columns(2)
 with c1:
-    st.subheader(" 강한 연결 TOP 10 (동시 발생)")
+    st.subheader(" 강한 연결 TOP 10")
     # ✅ 빈도수 대신 강한 연결 데이터를 가공하여 출력
     edge_list = [{"부작용 A": a, "부작용 B": b, "횟수": w} 
                  for (a, b), w in edge_weights.items()]
@@ -149,7 +170,37 @@ with c1:
         st.info("데이터가 없습니다.")
 
 with c2:
-    st.subheader("🏆 핵심 매개 부작용 (Centrality)")
-    between = nx.betweenness_centrality(G)
-    st.dataframe(pd.DataFrame(between.items(), columns=["부작용", "중심성"])
-                 .sort_values("중심성", ascending=False).head(10), use_container_width=True)
+    st.subheader("🏆 핵심 매개 부작용 (Network Hub)")
+    
+    # 1. 거리 개념 도입 (역수 취하기)
+    for u, v, d in G.edges(data=True):
+        d['distance'] = 1.0 / d['weight']
+    
+    # 2. 중심성 계산 (weight 매개변수에 distance 적용)
+    between = nx.betweenness_centrality(G, weight='distance')
+    
+    # 3. 만약 여전히 0이라면 연결 중심성으로 자동 전환 (Fallback 로직)
+    if sum(between.values()) == 0:
+        between = nx.degree_centrality(G)
+        st.info("💡 매개 중심성이 낮아 '연결성 중심'으로 지표를 전환했습니다.")
+
+    centrality_df = pd.DataFrame(between.items(), columns=["부작용", "중심성"])
+    # 스케일링 (가장 높은 값을 100점으로)
+    max_val = centrality_df["중심성"].max()
+    centrality_df["영향력 점수"] = centrality_df["중심성"].apply(lambda x: (x / max_val * 100) if max_val > 0 else 0)
+    
+    centrality_df = centrality_df.sort_values("영향력 점수", ascending=False).head(10)
+
+    st.dataframe(
+        centrality_df[["부작용", "영향력 점수"]], 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "영향력 점수": st.column_config.ProgressColumn(
+                "상대적 영향력",
+                format="%.1f 점",
+                min_value=0,
+                max_value=100
+            )
+        }
+    )
