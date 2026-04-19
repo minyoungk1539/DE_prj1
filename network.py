@@ -85,8 +85,8 @@ with st.sidebar:
     st.header("분석 필터")
     drug_choice = st.radio("분석 대상 약물", ["전체 통합", "위고비", "마운자로"])
     st.divider()
-    min_weight = st.slider("최소 연결 강도", 1, 500, 40)
-    top_n = st.slider("상위 부작용 표시 개수 (N)", 5, 50, 12)
+    min_weight = st.slider("최소 연결 강도", 1, 500, 300)
+    top_n = st.slider("상위 부작용 표시 개수 (N)", 5, 50, 14)
 
 # ── 4. 데이터 처리 ─────────────────────────────────────────────
 fdf = df if drug_choice == "전체 통합" else df[df["drug_type"] == ("wegovy" if drug_choice == "위고비" else "mounjaro")]
