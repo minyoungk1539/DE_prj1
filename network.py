@@ -35,7 +35,7 @@ def load_combined_data():
     for drug in target_drugs:
         drug_data = []
         
-        # 1. X_Cleaned_v2에서 해당 약물의 전체 데이터 개수 확인 (랜덤 추출용)
+        # 1. X_Cleaned_v3에서 해당 약물의 전체 데이터 개수 확인 (랜덤 추출용)
         # side_effects가 존재하고 drug_type이 일치하는 문서 대상
         match_condition = {
             "drug_type": drug, 
@@ -49,7 +49,7 @@ def load_combined_data():
             {"$project": {"author_id": 1, "side_effects": 1, "_id": 0}}
         ]
         
-        results_x = list(db["X_Cleaned_v2"].aggregate(pipeline_x))
+        results_x = list(db["X_Cleaned_v3"].aggregate(pipeline_x))
         for item in results_x:
             se = item.get("side_effects", "")
             effects = [e.strip().lower() for e in (se if isinstance(se, list) else str(se).split(",")) if e.strip()]
@@ -66,7 +66,7 @@ def load_combined_data():
                 {"$sample": {"size": needed}}, # 남은 수량만큼만 Reddit에서 랜덤 추출
                 {"$project": {"author_id": 1, "side_effects": 1, "_id": 0}}
             ]
-            results_r = list(db["Reddit_Cleaned_v2"].aggregate(pipeline_r))
+            results_r = list(db["Reddit_Cleaned_v3"].aggregate(pipeline_r))
             for item in results_r:
                 se = item.get("side_effects", "")
                 effects = [e.strip().lower() for e in (se if isinstance(se, list) else str(se).split(",")) if e.strip()]
